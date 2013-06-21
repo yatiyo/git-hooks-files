@@ -1,0 +1,55 @@
+#!/usr/bin/env ruby
+module Hooks
+  class Fuze
+    attr_reader :hooks_list
+    DEFAULT_HOOKS_LIST = [:insert_ticket]
+
+    def initialize(hooks_list = DEFAULT_HOOKS_LIST)
+      @hooks_list = Array(hooks_list)
+    end
+
+    def fire(hook_name)
+      case hook_name
+      when :insert_ticket; insert_ticket
+      end
+    end
+
+    def fire_all; hooks_list.each { |hook_name| fire(hook_name) } end
+    def insert_ticket; InsertTicket.new.insert_ticket end
+  end
+
+  class InsertTicket
+    TICKET_INDEX = 0
+    IGNORE_LIST  = ['master', 'develop']
+
+    def get_ticket_name(ticket_index = TICKET_INDEX)
+      # [Windows] /dev/null -> nul
+      `git branch --no-color 2> /dev/null`[/^\* (.+)/, 1]
+        .to_s.split('/')[ticket_index]
+    end
+
+    def insert_ticket(ticket_index = TICKET_INDEX,
+                      ignore_list = IGNORE_LIST)
+      ticket_name = get_ticket_name(ticket_index)
+      if ticket?(ticket_name, ignore_list)
+        msg_file = ARGV[0]
+        message = File.read(msg_file).strip.chomp
+        File.open msg_file, 'w' do |new_msg_file|
+          new_msg_file.write "[#{ticket_name}]#{message}"
+        end
+      end
+    end
+
+    def ticket?(ticket_name, ignore_list)
+      if ticket_name.nil?
+        false
+      else
+        !Array(ignore_list).map { |e| e == ticket_name }.include?(true)
+      end
+    end
+  end
+end
+
+###################################
+fuze = Hooks::Fuze.new()
+fuze.fire_all
